@@ -53,6 +53,38 @@ def get_authenticated_session(user: str, password: str):
     return session, csrf
 
 
+def find_pending_accounts(session, group: str):
+    """
+    Finds all pending accounts in a given group on groups.io and returns them in a list.
+
+    Parameters:
+    - session: The authenticated session for making API calls to groups.io.
+    - group: A dictionary containing information about the group, including its name.
+
+    Returns:
+    - A list of email addresses for accounts that are pending in the specified group.
+    """
+    next_page_token_pending_members = 0
+    pending_members = True
+    pending = []
+
+    while pending_members:
+        # Fixed the indentation
+        pending_member_data = session.post(
+            f"https://groups.io/api/v1/getmembers?group_name={group['group_name']}&type=pending&page_token={next_page_token_pending_members}"
+        ).json()
+
+        next_page_token_pending_members = pending_member_data.get('next_page_token', 0)
+
+        if next_page_token_pending_members == 0:
+            pending_members = False
+
+        for member in pending_member_data['data']:
+            pending.append(member["email"])
+
+    return pending
+
+
 def find_monitored_groups(session, search_email: str):
     """
     Search the Groups.io for groups monitored by the admin and check membership of the user.
@@ -115,11 +147,13 @@ def process_group(session, group, monitored_groups: Dict, search_email: str, fou
         'email_address': group_data['email_address']
     }
 
+    pending_members = find_pending_accounts(session, group)
+
     search_group = session.post(
         f"https://groups.io/api/v1/searchmembers?group_name={group['group_name']}&q={search_email.replace('+', '%2B')}",
     ).json()
 
-    if search_group['total_count']:
+    if search_group['total_count'] and search_group['data'][0]['email'] not in pending_members:
         found_accounts.append(group['group_name'])
         print(f"  - {search_email} is a RISC-V Member and part of {monitored_groups[group['group_name']]['email_address']}")
     else:
