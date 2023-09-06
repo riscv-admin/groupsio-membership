@@ -1,116 +1,198 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>RISC-V Membership Search</title>
-    <link rel="icon" href="/static/images/favicon.ico" type="image/x-icon">
-    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600&display=swap" rel="stylesheet">
+  <head>
+    <meta charset="UTF-8" />
+    <title>RISC-V Membership Verification</title>
+    <link rel="icon" href="/static/images/favicon.ico" type="image/x-icon" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
     <style>
-        body {
-            margin: 0;
-            padding: 0;
-            background-color: #f1f1f1; /* Google-like background */
-            font-family: 'Open Sans', sans-serif;
+      body {
+        margin: 0;
+        padding: 0;
+        background-color: #f1f1f1;
+        font-family: "Open Sans", sans-serif;
+      }
+      .container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+      }
+      .search-container {
+        display: flex;
+        justify-content: center;
+        width: 100%;
+      }
+      .search-box {
+        height: 44px;
+        width: 350px;
+        border: 1px solid #ccc;
+        border-radius: 24px;
+        padding-left: 24px;
+        margin-right: 20px;
+      }
+      .search-button {
+        height: 46px;
+        width: 100px;
+        border: none;
+        background-color: #003399;
+        color: white;
+        border-radius: 24px;
+        cursor: pointer;
+      }
+      .result {
+        margin-top: 20px;
+        padding: 10px;
+        border-radius: 4px;
+        width: 470px;
+        text-align: center;
+      }
+      .result.success {
+        background-color: lightgreen;
+      }
+      .result.failure {
+        background-color: lightcoral;
+      }
+      .spinner {
+        margin-top: 20px;
+      }
+      .loader {
+        border: 5px solid #f3f3f3;
+        border-radius: 50%;
+        border-top: 5px solid #003399;
+        width: 50px;
+        height: 50px;
+        -webkit-animation: spin 2s linear infinite;
+        animation: spin 2s linear infinite;
+      }
+      @-webkit-keyframes spin {
+        0% {
+          -webkit-transform: rotate(0deg);
         }
-        .container {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
+        100% {
+          -webkit-transform: rotate(360deg);
         }
-        .search-container {
-            display: flex;
-            justify-content: center;
-            width: 100%;
+      }
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
         }
-        .search-box {
-            height: 44px;
-            width: 350px;
-            border: 1px solid #ccc;
-            border-radius: 24px;
-            padding-left: 24px;
-            margin-right: 20px; /* Separation between input and button */
+        100% {
+          transform: rotate(360deg);
         }
-        .search-button {
-            height: 46px;
-            width: 100px;
-            border: none;
-            background-color: #003399; /* Berkeley Blue */
-            color: white;
-            border-radius: 24px;
-            cursor: pointer;
-        }
-        .result {
-            margin-top: 20px;
-            padding: 10px;
-            border-radius: 4px;
-            width: 470px;  /* 350px (input) + 100px (button) + 20px (margin) */
-            text-align: center; /* Centers the text */
-        }
-        .result.success {
-            background-color: lightgreen;
-        }
-        .result.failure {
-            background-color: lightcoral;
-        }
-        .spinner {
-            margin-top: 20px;
-        }
-        .loader {
-            border: 5px solid #f3f3f3;
-            border-radius: 50%;
-            border-top: 5px solid #003399;
-            width: 50px;
-            height: 50px;
-            -webkit-animation: spin 2s linear infinite;
-            animation: spin 2s linear infinite;
-        }
-        @-webkit-keyframes spin {
-            0% { -webkit-transform: rotate(0deg); }
-            100% { -webkit-transform: rotate(360deg); }
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
+      }
+      /* Tab Styles */
+      .tabs {
+        display: flex;
+        justify-content: center;
+        margin-bottom: 10px;
+      }
+      .tab {
+        padding: 10px 20px;
+        margin: 5px;
+        cursor: pointer;
+        border: none; /* Remove borders */
+        border-radius: 24px; /* Rounded corners */
+        background-color: transparent; /* Transparent background */
+      }
+      .tab.active {
+        border: none; /* No border for the active tab */
+        color: #003399; /* Berkeley Blue text for the active tab */
+        font-weight: bold; /* Make the text bold */
+        font-size: larger; /* Make the text larger */
+      }
     </style>
-</head>
-<body>
-
+  </head>
+  <body>
     <div class="container">
-        <img src="/static/images/riscv.png" alt="Your Brand Image" width="500">
-        <h1>Membership Search</h1>
-        <form method="POST">
-            <div class="search-container">
-                <input type="text" class="search-box" name="email" placeholder="Enter email address" required>
-                <button type="submit" class="search-button">Search</button>
-            </div>
-        </form>
-        <div class="result {{ status }}">
-            <p>{{ message }}</p>
+      <img src="/static/images/riscv.png" alt="Your Brand Image" width="500" />
+      <h1>Membership Verification</h1>
+
+      <!-- Tabs -->
+      <div class="tabs">
+        <div class="tab active" id="groupsio-tab">Groups.io</div>
+        <div class="tab" id="github-tab">GitHub</div>
+        <div class="tab" id="jira-tab">Jira</div>
+      </div>
+
+      <form method="POST" action="/groupsio" id="search-form">
+        <div class="search-container">
+          <input
+            type="text"
+            class="search-box"
+            name="email"
+            id="search-input"
+            placeholder="{{ placeholder_text }}"
+            required
+          />
+          <button type="submit" class="search-button">Search</button>
         </div>
-        <div class="spinner" id="spinner" style="display:none;">
-            <div class="loader"></div>
-        </div>
+      </form>
+      <div class="result {{ status }}">
+        <p>{{ message }}</p>
+      </div>
+      <div class="spinner" id="spinner" style="display: none">
+        <div class="loader"></div>
+      </div>
     </div>
 
-    <!-- JS code for spinner -->
+    <!-- JS code for spinner and tabs -->
     <script>
-        document.addEventListener("DOMContentLoaded", function() {
+      document.addEventListener("DOMContentLoaded", function () {
         // Get the form element
         const form = document.querySelector("form");
 
         // Get the spinner element
         const spinner = document.getElementById("spinner");
 
-        // Listen for the form submit event
-        form.addEventListener("submit", function() {
-            // Show the spinner when the form is submitted
-            spinner.style.display = "block";
-        });
-    }); 
-    </script>
+        // Get the result element
+        const result = document.querySelector(".result");
 
-</body>
+        // Listen for the form submit event
+        form.addEventListener("submit", function () {
+          // Show the spinner when the form is submitted
+          spinner.style.display = "block";
+        });
+
+        // Tab Logic
+        const tabs = document.querySelectorAll(".tab");
+        const searchInput = document.getElementById("search-input");
+        const searchForm = document.getElementById("search-form");
+
+        tabs.forEach((tab) => {
+          tab.addEventListener("click", function () {
+            tabs.forEach((innerTab) => innerTab.classList.remove("active"));
+            this.classList.add("active");
+
+            // Clear the result message
+            result.innerHTML = "";
+            result.className = "result"; // remove success or failure class
+
+            if (this.id === "groupsio-tab") {
+              searchInput.setAttribute("name", "email");
+              searchInput.setAttribute(
+                "placeholder",
+                "Enter email for Groups.io"
+              );
+            } else if (this.id === "github-tab") {
+              searchInput.setAttribute("name", "github");
+              searchInput.setAttribute("placeholder", "Enter GitHub Username");
+            } else if (this.id === "jira-tab") {
+              searchInput.setAttribute("name", "jira");
+              searchInput.setAttribute("placeholder", "Enter Jira Email");
+            }
+
+            searchForm.setAttribute(
+              "action",
+              `/${this.id.replace("-tab", "")}`
+            );
+          });
+        });
+      });
+    </script>
+  </body>
 </html>

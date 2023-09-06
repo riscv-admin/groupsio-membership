@@ -16,18 +16,90 @@
 #
 #   Rafael Sene rafael@riscv.org - Intial commit.
 
-from flask import Flask, render_template, request, redirect, url_for
-from typing import Dict, List
-import logging
-import sys
-import requests
-import re
+# Standard library imports
 import os
+import re
+import sys
+
+# Related third-party imports
+from flask import Flask, request, render_template
+from jira import JIRA
+import requests
+from typing import Dict, List
+
 
 app = Flask(__name__)
-app.config['ENV'] = 'production'
-app.config['DEBUG'] = False
 
+# GitHub
+def get_all_team_members(gh_token, org, team_slug):
+    team_members_url = f"https://api.github.com/orgs/{org}/teams/{team_slug}/members"
+    headers = {
+        "Authorization": f"token {gh_token}",
+        "Accept": "application/vnd.github.v3+json",
+    }
+    all_members = []
+    
+    while team_members_url:
+        response = requests.get(team_members_url, headers=headers)
+        
+        if response.status_code != 200:
+            print(f"Failed to fetch team members: {response.content}")
+            return []
+        
+        all_members.extend(response.json())
+        
+        # Check for Link header for pagination
+        link_header = response.headers.get('Link', None)
+        team_members_url = None
+        
+        if link_header:
+            links = link_header.split(',')
+            for link in links:
+                # Extract the URL and the "rel" type
+                url, rel = link.split(';')
+                url = url.strip()[1:-1]  # Remove leading and trailing angle brackets and whitespaces
+                rel = rel.strip()
+
+                if 'rel="next"' in rel:
+                    team_members_url = url
+                    break
+    
+    return all_members
+
+
+def check_if_user_is_in_team(gh_login, gh_token):
+    org = "riscv-admin"
+    team_slug = "riscv-members"
+    is_member = False  # Rename variable to avoid confusion
+    team_members = get_all_team_members(gh_token, org, team_slug)
+    
+    for member in team_members:
+        if member['login'] == gh_login:
+            print(f"{gh_login} is a member of the RISC-V team.")
+            is_member = True
+            break
+    
+    if not is_member:
+        print(f"{gh_login} is NOT a member of the RISC-V team.")
+        
+    return is_member
+
+
+# Jira
+def check_if_user_is_in_jira(email, jira):
+    users = jira.search_users(email)
+    for user in users:
+        if user.emailAddress == email:
+            return True
+    return False
+
+
+def is_valid_email(email):
+    email_regex = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    return bool(re.match(email_regex, email))
+
+
+# Groups.io
 def get_authenticated_session(user: str, password: str):
     """
     Authenticate with the Groups.io API and return an authenticated session.
@@ -159,30 +231,69 @@ def process_group(session, group, monitored_groups: Dict, search_email: str, fou
     else:
         print(f"  - {search_email} is not a member of RISC-V")
 
+
 @app.route('/', methods=['GET', 'POST'])
 def index():
-    logging.basicConfig(filename='error.log', level=logging.ERROR)
-    message = ""
+    placeholder_text = "Enter email for Groups.io"
     status = ""
+    message = ""
+    return render_template('index.html', placeholder_text=placeholder_text, status=status, message=message)
+
+
+@app.route('/groupsio', methods=['POST'])
+def groupsio_search():
+    email = request.form.get('email')
+    # Validate email
+    if not is_valid_email(email):
+        return render_template('index.html', status="failure", message=f"{email} is NOT a valid email address")
+
     if request.method == 'POST':
         search_email = request.form['email']
-        if not re.match(r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+", search_email):
-            message = 'This does not appear to be a valid email'
-            status = "failure"
+        user = os.environ.get("GROUPSIO_EMAIL_USER")
+        password = os.environ.get("GROUPSIO_EMAIL_PASSWORD")
+
+        session, _ = get_authenticated_session(user, password)
+        _, found_accounts = find_monitored_groups(session, search_email)
+        if found_accounts:
+            message = f"{search_email} is a RISC-V Groups.io Member"
+            status = "success"
         else:
-            user = os.environ.get("EMAIL_USER")
-            password = os.environ.get("EMAIL_PASSWORD")
+            message = f"{search_email} is NOT a member of RISC-V Groups.io"
+            status = "failure"
 
-            session, _ = get_authenticated_session(user, password)
-            _, found_accounts = find_monitored_groups(session, search_email)
-            if found_accounts:
-                message = f"{search_email} is a RISC-V Member"
-                status = "success"
-            else:
-                message = f"{search_email} is not a member of RISC-V"
-                status = "failure"
+        return render_template("index.html", message=message, status=status)
 
-    return render_template("index.html", message=message, status=status)
+
+@app.route('/github', methods=['POST'])
+def github_search():
+    github_username = request.form.get('github')
+    gh_token = os.environ.get("GITHUB_TOKEN")
+
+    is_member = check_if_user_is_in_team(github_username, gh_token)
+
+    if is_member:
+        return render_template('index.html', status="success", message=f"{github_username} is a member of the RISC-V GitHub Organization")
+    else:
+        return render_template('index.html', status="failure", message=f"{github_username} is NOT a member of the RISC-V GitHub Organization")
+
+
+@app.route('/jira', methods=['POST'])
+def jira_search():
+    jira_email = request.form.get('jira')
+
+    # Validate email
+    if not is_valid_email(jira_email):
+        return render_template('index.html', status="failure", message=f"{jira_email} is NOT a valid email address")
+
+    # Create a JIRA connection
+    jira = JIRA("https://jira.riscv.org", token_auth=os.environ.get("JIRA_TOKEN"))
+
+    is_user = check_if_user_is_in_jira(jira_email, jira)
+
+    if is_user:
+        return render_template('index.html', status="success", message=f"{jira_email} is a RISC-V Jira user")
+    else:
+        return render_template('index.html', status="failure", message=f"{jira_email} is NOT a RISC-V Jira user")
 
 
 if __name__ == '__main__':

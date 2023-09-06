@@ -10,5 +10,5 @@ docker build -t groupsio-membership .
 
 ## Execution
 ```bash
-docker run -e EMAIL_USER='' -e EMAIL_PASSWORD='' -p 5000:5000 groupsio-membership:latest
+docker run -e GROUPSIO_EMAIL_USER='' -e GROUPSIO_EMAIL_PASSWORD='' -e GITHUB_TOKEN='' -e JIRA_TOKEN='' -p 5000:5000 groupsio-membership:latest
 ```
