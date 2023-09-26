@@ -53,9 +53,11 @@
       }
       .result.success {
         background-color: lightgreen;
+        white-space: nowrap;
       }
       .result.failure {
         background-color: lightcoral;
+        white-space: nowrap;
       }
       .spinner {
         margin-top: 20px;
@@ -133,7 +135,7 @@
         </div>
       </form>
       <div class="result {{ status }}">
-        <p>{{ message }}</p>
+        <p>{{ message|replace('\n', '<br>')|safe }}</p>
       </div>
       <div class="spinner" id="spinner" style="display: none">
         <div class="loader"></div>

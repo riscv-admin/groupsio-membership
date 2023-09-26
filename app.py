@@ -24,6 +24,7 @@ import sys
 # Related third-party imports
 from flask import Flask, request, render_template
 from jira import JIRA
+from jira.exceptions import JIRAError
 import requests
 from typing import Dict, List
 
@@ -186,14 +187,14 @@ def find_monitored_groups(session, search_email: str):
         if 'data' in groups_page:
             for group in groups_page['data']:
                 if group['group_name'] != 'beta' and '+' not in group['group_name']:
-                    process_group(session, group, monitored_groups, search_email, found_accounts)
+                    account, extra = process_group(session, group, monitored_groups, search_email, found_accounts)
 
         next_page_token_groups = groups_page.get('next_page_token', 0)
 
         if next_page_token_groups == 0:
             more_groups = False
 
-    return monitored_groups, found_accounts
+    return monitored_groups, account, extra
 
 
 def process_group(session, group, monitored_groups: Dict, search_email: str, found_accounts: List):
@@ -207,6 +208,8 @@ def process_group(session, group, monitored_groups: Dict, search_email: str, fou
         search_email (str): The email to search for in the group.
         found_accounts (List): A list of groups where the email was found.
     """
+    extra_member_data = ""
+
     group_data = session.post(
         f"https://groups.io/api/v1/getgroup?group_name={group['group_name']}",
     ).json()
@@ -219,6 +222,13 @@ def process_group(session, group, monitored_groups: Dict, search_email: str, fou
         'email_address': group_data['email_address']
     }
 
+    data_status = {
+        "GitHub_ID": "is not set",
+        "LFX_Email": "is not set",
+        "Google_Drive_Email": "is not set",
+        "Checkbox_Status": "is not set"
+    }
+
     pending_members = find_pending_accounts(session, group)
 
     search_group = session.post(
@@ -227,10 +237,20 @@ def process_group(session, group, monitored_groups: Dict, search_email: str, fou
 
     if search_group['total_count'] and search_group['data'][0]['email'] not in pending_members:
         found_accounts.append(group['group_name'])
+        extra_member_data = search_group['data'][0]['extra_member_data']
+        for item in extra_member_data:
+            if item['col_id'] == 2 and 'text' in item and item['text']:
+                data_status["GitHub_ID"] = "is set"
+            elif item['col_id'] == 3 and 'text' in item and item['text']:
+                data_status["LFX_Email"] = "is set"
+            elif item['col_id'] == 4 and 'text' in item and item['text']:
+                data_status["Google_Drive_Email"] = "is set"
+            elif item['col_id'] == 5 and 'checked' in item:
+                data_status["Checkbox_Status"] = "is set" if item['checked'] else "is not set"
         print(f"  - {search_email} is a RISC-V Member and part of {monitored_groups[group['group_name']]['email_address']}")
     else:
         print(f"  - {search_email} is not a member of RISC-V")
-
+    return found_accounts, extra_member_data
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -242,39 +262,68 @@ def index():
 
 @app.route('/groupsio', methods=['POST'])
 def groupsio_search():
-    email = request.form.get('email')
-    # Validate email
-    if not is_valid_email(email):
-        return render_template('index.html', status="failure", message=f"{email} is NOT a valid email address")
+    try:
+        email = request.form.get('email')
+        # Validate email
+        if not is_valid_email(email):
+            return render_template('index.html', status="failure", message=f"{email} is NOT a valid email address")
 
-    if request.method == 'POST':
-        search_email = request.form['email']
-        user = os.environ.get("GROUPSIO_EMAIL_USER")
-        password = os.environ.get("GROUPSIO_EMAIL_PASSWORD")
+        if request.method == 'POST':
+            search_email = request.form['email']
+            user = os.environ.get("GROUPSIO_EMAIL_USER")
+            password = os.environ.get("GROUPSIO_EMAIL_PASSWORD")
 
-        session, _ = get_authenticated_session(user, password)
-        _, found_accounts = find_monitored_groups(session, search_email)
-        if found_accounts:
-            message = f"{search_email} is a RISC-V Groups.io Member"
-            status = "success"
-        else:
-            message = f"{search_email} is NOT a member of RISC-V Groups.io"
-            status = "failure"
+            session, _ = get_authenticated_session(user, password)
+            _, found_accounts, extra = find_monitored_groups(session, search_email)
+            if found_accounts:
+                data_status = extra[0]
+                # Populate the dictionary based on the extra_member_data list
+                for item in extra:
+                    if item['col_id'] == 2 and 'text' in item and item['text']:
+                        data_status['GitHub_ID'] = "is set"
+                    elif item['col_id'] == 3 and 'text' in item and item['text']:
+                        data_status['LFX_Email'] = "is set"
+                    elif item['col_id'] == 4 and 'text' in item and item['text']:
+                        data_status['Google_Drive_Email'] = "is set"
+                    elif item['col_id'] == 5 and 'checked' in item:
+                        data_status['Checkbox_Status'] = "is set" if item['checked'] else "is not set"
 
-        return render_template("index.html", message=message, status=status)
+                # Construct the message string using the populated data_status dictionary
+                message = f"{search_email} is a RISC-V Groups.io Member!\n\n"\
+                            f"GitHub ID {data_status['GitHub_ID']}\n"\
+                            f"LFX Email {data_status['LFX_Email']}\n"\
+                            f"Google Drive Email {data_status['Google_Drive_Email']}\n"\
+                            f"Vote by Code Checkbox {data_status['Checkbox_Status']}\n\n"\
+                            f'Profile Update: <a href="https://lists.riscv.org/g/main/editprofile">https://lists.riscv.org/g/main/editprofile</a>'
+                status = "success"
+            else:
+                message = f"{search_email} is NOT a member of RISC-V Groups.io. \n\n"\
+                            f"If need be, ask for help at <a href='mailto:help@riscv.org'>help@riscv.org</a>!"
+                status = "failure"
 
+            return render_template("index.html", message=message, status=status)
+    except Exception as e:
+        error_message = f"An error occurred while searching for {email}: {str(e)}\n\n"\
+                        f"If need be, ask for help at <a href='mailto:help@riscv.org'>help@riscv.org</a>!"
+        return render_template('index.html', status="failure", message=error_message)
 
 @app.route('/github', methods=['POST'])
 def github_search():
     github_username = request.form.get('github')
     gh_token = os.environ.get("GITHUB_TOKEN")
 
-    is_member = check_if_user_is_in_team(github_username, gh_token)
+    try:
+        if check_if_user_is_in_team(github_username, gh_token):
+            return render_template('index.html', status="success", message=f"{github_username} is a member of the RISC-V GitHub Organization")
+        else:
+            message = f"{github_username} is NOT a member of the RISC-V GitHub Organization. \n\n"\
+                        f"If need be, ask for help at <a href='mailto:help@riscv.org'>help@riscv.org</a>!"
+            return render_template('index.html', status="failure", message=message)
 
-    if is_member:
-        return render_template('index.html', status="success", message=f"{github_username} is a member of the RISC-V GitHub Organization")
-    else:
-        return render_template('index.html', status="failure", message=f"{github_username} is NOT a member of the RISC-V GitHub Organization")
+    except Exception as e:  # This will capture any general exception
+        error_message = f"An error occurred while searching for {github_username}: {str(e)}\n\n"\
+                        f"If need be, ask for help at <a href='mailto:help@riscv.org'>help@riscv.org</a>!"
+        return render_template('index.html', status="failure", message=error_message)
 
 
 @app.route('/jira', methods=['POST'])
@@ -285,15 +334,22 @@ def jira_search():
     if not is_valid_email(jira_email):
         return render_template('index.html', status="failure", message=f"{jira_email} is NOT a valid email address")
 
-    # Create a JIRA connection
-    jira = JIRA("https://jira.riscv.org", token_auth=os.environ.get("JIRA_TOKEN"))
+    try:
+        # Create a JIRA connection
+        jira = JIRA("https://jira.riscv.org", token_auth=os.environ.get("JIRA_TOKEN"))
+        is_user = check_if_user_is_in_jira(jira_email, jira)
 
-    is_user = check_if_user_is_in_jira(jira_email, jira)
-
-    if is_user:
-        return render_template('index.html', status="success", message=f"{jira_email} is a RISC-V Jira user")
-    else:
-        return render_template('index.html', status="failure", message=f"{jira_email} is NOT a RISC-V Jira user")
+        if is_user:
+            return render_template('index.html', status="success", message=f"{jira_email} is a RISC-V Jira user")
+        else:
+            message = f"{jira_email} is NOT a RISC-V Jira user. \n\n"\
+                        f"If need be, ask for help at <a href='mailto:help@riscv.org'>help@riscv.org</a>!"
+            return render_template('index.html', status="failure", message=message)
+    
+    except JIRAError:
+        message = f"Failed to connect to JIRA or authenticate. \n\n"\
+                  f"Notify this issue via <a href='mailto:help@riscv.org'>help@riscv.org</a>!"
+        return render_template('index.html', status="failure", message=message)
 
 
 if __name__ == '__main__':
