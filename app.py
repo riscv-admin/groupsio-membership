@@ -262,49 +262,60 @@ def index():
 
 @app.route('/groupsio', methods=['POST'])
 def groupsio_search():
+    """
+    Search for a given email in the Groups.io system and retrieve related status information.
+    """
     try:
         email = request.form.get('email')
         # Validate email
         if not is_valid_email(email):
             return render_template('index.html', status="failure", message=f"{email} is NOT a valid email address")
 
-        if request.method == 'POST':
-            search_email = request.form['email']
-            user = os.environ.get("GROUPSIO_EMAIL_USER")
-            password = os.environ.get("GROUPSIO_EMAIL_PASSWORD")
+        user = os.environ.get("GROUPSIO_EMAIL_USER")
+        password = os.environ.get("GROUPSIO_EMAIL_PASSWORD")
 
-            session, _ = get_authenticated_session(user, password)
-            _, found_accounts, extra = find_monitored_groups(session, search_email)
-            if found_accounts:
-                data_status = extra[0]
-                # Populate the dictionary based on the extra_member_data list
-                for item in extra:
-                    if item['col_id'] == 2 and 'text' in item and item['text']:
-                        data_status['GitHub_ID'] = "is set"
-                    elif item['col_id'] == 3 and 'text' in item and item['text']:
-                        data_status['LFX_Email'] = "is set"
-                    elif item['col_id'] == 4 and 'text' in item and item['text']:
-                        data_status['Google_Drive_Email'] = "is set"
-                    elif item['col_id'] == 5 and 'checked' in item:
-                        data_status['Checkbox_Status'] = "is set" if item['checked'] else "is not set"
+        session, _ = get_authenticated_session(user, password)
+        _, found_accounts, extra = find_monitored_groups(session, email)
 
-                # Construct the message string using the populated data_status dictionary
-                message = f"{search_email} is a RISC-V Groups.io Member!\n\n"\
-                            f"GitHub ID {data_status['GitHub_ID']}\n"\
-                            f"LFX Email {data_status['LFX_Email']}\n"\
-                            f"Google Drive Email {data_status['Google_Drive_Email']}\n"\
-                            f"Vote by Code Checkbox {data_status['Checkbox_Status']}\n\n"\
-                            f'Profile Update: <a href="https://lists.riscv.org/g/main/editprofile">https://lists.riscv.org/g/main/editprofile</a>'
-                status = "success"
-            else:
-                message = f"{search_email} is NOT a member of RISC-V Groups.io. \n\n"\
-                            f"If need be, ask for help at <a href='mailto:help@riscv.org'>help@riscv.org</a>!"
-                status = "failure"
+        # Initialize the data_status dictionary with default values
+        data_status = {
+            'GitHub_ID': "❌",
+            'LFX_Email': "❌",
+            'Google_Drive_Email': "❌",
+            'Checkbox_Status': "❌"
+        }
 
-            return render_template("index.html", message=message, status=status)
+        # Populate the dictionary based on the extra_member_data list
+        for item in extra:
+            if 'col_id' in item:
+                if item['col_id'] == 2 and 'text' in item and item['text']:
+                    data_status['GitHub_ID'] = "✅"
+                elif item['col_id'] == 3 and 'text' in item and item['text']:
+                    data_status['LFX_Email'] = "✅"
+                elif item['col_id'] == 4 and 'text' in item and item['text']:
+                    data_status['Google_Drive_Email'] = "✅"
+                elif item['col_id'] == 5 and 'checked' in item:
+                    data_status['Checkbox_Status'] = "✅" if item['checked'] else "❌"
+
+        if found_accounts:
+            # Construct the message string using the populated data_status dictionary
+            # if need be: f"Vote by Code {data_status['Checkbox_Status']}\n\n"
+            message = (f"{email} is a RISC-V Groups.io Member!\n\n"
+                       f"GitHub ID {data_status['GitHub_ID']}\n"
+                       f"LFX Email {data_status['LFX_Email']}\n"
+                       f"Google Drive Email {data_status['Google_Drive_Email']}\n\n"
+                       f'Profile Update: <a href="https://lists.riscv.org/g/main/editprofile">https://lists.riscv.org/g/main/editprofile</a>')
+            status = "success"
+        else:
+            message = (f"{email} is NOT a member of RISC-V Groups.io. \n\n"
+                       f"If need be, ask for help at <a href='mailto:help@riscv.org'>help@riscv.org</a>!")
+            status = "failure"
+
+        return render_template("index.html", message=message, status=status)
+
     except Exception as e:
-        error_message = f"An error occurred while searching for {email}: {str(e)}\n\n"\
-                        f"If need be, ask for help at <a href='mailto:help@riscv.org'>help@riscv.org</a>!"
+        error_message = (f"An error occurred: {str(e)}\n\n"
+                         f"If you need assistance, please contact <a href='mailto:help@riscv.org'>help@riscv.org</a>!")
         return render_template('index.html', status="failure", message=error_message)
 
 @app.route('/github', methods=['POST'])

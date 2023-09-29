@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title>RISC-V Membership Verification</title>
+    <title>Tool Access Verification</title>
     <link rel="icon" href="/static/images/favicon.ico" type="image/x-icon" />
     <link
       href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600&display=swap"
@@ -92,27 +92,37 @@
         display: flex;
         justify-content: center;
         margin-bottom: 10px;
+        /*border-bottom: 2px solid #ccc;   This gives a sense of separation from the content below */
       }
+
       .tab {
         padding: 10px 20px;
-        margin: 5px;
+        margin: 0 5px; /* Adjusted to align with border */
         cursor: pointer;
         border: none; /* Remove borders */
+        border-bottom: 3px solid transparent; /* Placeholder for active state */
         border-radius: 24px; /* Rounded corners */
         background-color: transparent; /* Transparent background */
+        transition: background-color 0.3s; /* Transition effect for smooth color change */
       }
+
+      .tab:hover {
+        background-color: #f5f5f5; /* Gentle gray to suggest interactivity on hover */
+      }
+
       .tab.active {
-        border: none; /* No border for the active tab */
+        border-bottom-color: #9ea2aa; /* Berkeley Blue border for the active tab */
         color: #003399; /* Berkeley Blue text for the active tab */
         font-weight: bold; /* Make the text bold */
         font-size: larger; /* Make the text larger */
+        background-color: #f1f1f1; /* A gentle blue background for the active tab */
       }
     </style>
   </head>
   <body>
     <div class="container">
       <img src="/static/images/riscv.png" alt="Your Brand Image" width="500" />
-      <h1>Membership Verification</h1>
+      <h1>Tool Access Verification</h1>
 
       <!-- Tabs -->
       <div class="tabs">
