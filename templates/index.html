@@ -12,7 +12,7 @@
       body {
         margin: 0;
         padding: 0;
-        background-color: #f1f1f1;
+        background-color: #fdfdfd;
         font-family: "Open Sans", sans-serif;
       }
       .container {
@@ -52,11 +52,15 @@
         text-align: center;
       }
       .result.success {
-        background-color: lightgreen;
+        background-color: rgb(231, 231, 231);
         white-space: nowrap;
       }
       .result.failure {
         background-color: lightcoral;
+        white-space: nowrap;
+      }
+      .result.warning {
+        background-color: #f8f872e5;
         white-space: nowrap;
       }
       .spinner {
@@ -123,15 +127,7 @@
     <div class="container">
       <img src="/static/images/riscv.png" alt="Your Brand Image" width="500" />
       <h1>Tool Access Verification</h1>
-
-      <!-- Tabs -->
-      <div class="tabs">
-        <div class="tab active" id="groupsio-tab">Groups.io</div>
-        <div class="tab" id="github-tab">GitHub</div>
-        <div class="tab" id="jira-tab">Jira</div>
-      </div>
-
-      <form method="POST" action="/groupsio" id="search-form">
+      <form method="POST" action="/" id="search-form">
         <div class="search-container">
           <input
             type="text"
@@ -190,13 +186,14 @@
                 "placeholder",
                 "Enter email for Groups.io"
               );
-            } else if (this.id === "github-tab") {
-              searchInput.setAttribute("name", "github");
-              searchInput.setAttribute("placeholder", "Enter GitHub Username");
-            } else if (this.id === "jira-tab") {
-              searchInput.setAttribute("name", "jira");
-              searchInput.setAttribute("placeholder", "Enter Jira Email");
             }
+            // } else if (this.id === "github-tab") {
+            //   searchInput.setAttribute("name", "github");
+            //   searchInput.setAttribute("placeholder", "Enter GitHub Username");
+            // } else if (this.id === "jira-tab") {
+            //   searchInput.setAttribute("name", "jira");
+            //   searchInput.setAttribute("placeholder", "Enter Jira Email");
+            // }
 
             searchForm.setAttribute(
               "action",

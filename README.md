@@ -10,5 +10,17 @@ docker build -t groupsio-membership .
 
 ## Execution
 ```bash
-docker run -e GROUPSIO_EMAIL_USER='' -e GROUPSIO_EMAIL_PASSWORD='' -e GITHUB_TOKEN='' -e JIRA_TOKEN='' -p 5000:5000 groupsio-membership:latest
+docker run -it --rm \
+-e SERVICE_ACCOUNT_FILE="" \
+-e GOOGLE_ADMIN_SUBJECT="" \
+-e GROUPSIO_USER="" \
+-e GROUPSIO_PASSWORD="" \
+-e GITHUB_TOKEN="" \
+-e JIRA_TOKEN="" \
+-e JIRA_URL="" \
+-e ORG="" \
+-e TEAM_SLUG="" \
+-p 5000:5000 \
+-v $(pwd):/app \
+groupsio-membership:latest
 ```
